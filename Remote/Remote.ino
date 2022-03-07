@@ -1,57 +1,97 @@
+int analogPin = A0; // potentiometer wiper (middle terminal) connected to analog pin 3
+                    // outside leads to ground and +5V
+int val = 0;  // variable to store the value read
+int pin = 7;
+int threshold = 30;
 
-#include <IRremote.h>
-
-const int RECV_PIN = 7;
-IRrecv irrecv(RECV_PIN);
-decode_results results;
-
-const int PUSH_DELAY = 250;
-const int PowerPIN = 8;
-const int VolUpPIN = 9;
-const int VolDownPIN = 10;
-
-
-void setup(){
-  Serial.begin(9600);
-  IrReceiver.begin(RECV_PIN, true); // Start the receiver
+void setup() {
+  Serial.begin(9600);           //  setup serial
+  pinMode(pin, OUTPUT);  
+  pinMode(LED_BUILTIN, OUTPUT);
   
-  pinMode(8, OUTPUT);
-  digitalWrite(8, LOW);
+  delay(500);
   
-  pinMode(9, OUTPUT);
-  digitalWrite(9, LOW);
-  
-  pinMode(10, OUTPUT);
-  digitalWrite(10, LOW);
+  digitalWrite(pin, LOW);
+
+  delay(1000);
 }
 
-void PushBtn(int pinNo){
-  digitalWrite(pinNo, HIGH);
-  delay(PUSH_DELAY);
-  digitalWrite(pinNo, LOW); 
-}
+bool is_on = false;
 
-void loop(){
-  if (IrReceiver.decode()) {
-      Serial.println(IrReceiver.decodedIRData.decodedRawData, HEX);
+void wait_for_constant_voltage(){
 
-      switch(IrReceiver.decodedIRData.decodedRawData)
-      {
-        case 0x92:
-          Serial.println("Vol up");
-          PushBtn(VolUpPIN);
-          break;
-        case 0x93:
-          Serial.println("Vol down");
-          PushBtn(VolDownPIN);
-          break;
-        case 0x95:
-          Serial.println("Turn on/off");
-          PushBtn(PowerPIN);
-          break;
+  int count = 0;
+  
+  while(true){
+    Serial.println("Trying to detect constant voltage...");
+    val = analogRead(analogPin);
+
+
+
+    if(val == 1023){
+      Serial.println("High spike detected.");
+
+      if(count > threshold){
+        return;
       }
-      
-      IrReceiver.resume(); // Enable receiving of the next value
-  } 
 
+      Serial.print("Count: ");
+      Serial.println(count);
+      count ++;
+      
+    }
+    else{
+      count = 0;
+    }
+
+    delay(500);    
+  }
+}
+
+void wait_for_low_voltage(){
+   while(true){
+    Serial.println("Trying to detect low voltage...");
+    
+    val = analogRead(analogPin);
+
+    int minus_count = 0;
+    int minus_threshold = 10;
+
+    if(val < 1023){
+      Serial.println("Low spike detected.");
+      
+      for(int i = 0 ; i < minus_threshold; i++){
+        val = analogRead(analogPin);
+        if(val < 1023){
+          Serial.print("Minus count: ");
+          Serial.println( minus_count);
+
+        }
+        minus_count ++;
+        delay(200);
+      }
+    }
+
+    if(minus_count > minus_threshold * 2.0 /3.0)
+      return;
+    else
+      minus_count = 0;
+
+    delay(2500);    
+  }
+}
+
+void loop() {
+
+  wait_for_constant_voltage();
+  Serial.println("Constant voltage detected. Going to on..."); 
+  digitalWrite(pin, HIGH);
+  digitalWrite(LED_BUILTIN, HIGH);
+
+  wait_for_low_voltage();
+  Serial.println("Low voltage detected. Going to off..."); 
+  digitalWrite(pin, LOW);
+  digitalWrite(LED_BUILTIN, LOW);
+  
+         // debug value
 }
